@@ -30,8 +30,9 @@
 #define SAFE_ALLOC_ADDITIONAL	33
 #define INVERSE_COLOR           500
 
-typedef char        BYTE;
-typedef char        GLYPH;
+typedef char        	BYTE;
+typedef char		GLYPH;
+typedef struct VBUF	Vbuf;
 
 struct termios 	orig_termIOS;	// Original State of the Terminal
 
@@ -78,6 +79,50 @@ enum KEYS
     F11_KEY,
     F12_KEY
 };
+
+/*** Variable Buffer ***/
+struct VBUF
+{
+    char* data;
+    size_t size;
+    size_t cap;
+};
+
+Vbuf vbuf_init()
+{
+    Vbuf vbuf = {NULL, 0, SAFE_ALLOC_ADDITIONAL};
+    vbuf.data = malloc(SAFE_ALLOC_ADDITIONAL);
+
+    return vbuf;
+}
+
+static void vbuf_Realloc(Vbuf* vbuf_ptr, size_t newCapacity)
+{
+    if (newCapacity < vbuf_ptr->size)
+        vbuf_ptr->size = newCapacity;
+
+    char* data = malloc(newCapacity);
+
+    // Copy data frmo vbuf_ptr->data to vbuf.data
+    memcpy(vbuf_ptr->data, data, vbuf_ptr->size);
+
+    vbuf_ptr->data = data;
+    vbuf_ptr->cap = newCapacity;
+}
+
+void vbuf_append(Vbuf* vbuf_ptr, const char *const data, const size_t data_size)
+{
+    if (data_size >= vbuf_ptr->cap)
+        vbuf_Realloc(vbuf_ptr, (vbuf_ptr->cap + data_size + SAFE_ALLOC_ADDITIONAL));
+
+    memcpy((char*) data, &vbuf_ptr->data[vbuf_ptr->size - 1], data_size);
+}
+
+void vbuf_free(Vbuf* vbuf_ptr)
+{
+    free(vbuf_ptr->data);
+    *vbuf_ptr = (Vbuf){NULL, 0, 0};
+}
 
 // Set terminal into raw mode
 void tE_cfmakeraw(t)
@@ -263,12 +308,14 @@ void Fill(struct terminalEngine* tE_ptr, int x1, int y1, int x2, int y2, GLYPH g
 
 void WriteConsoleOutput(struct terminalEngine* tE_ptr)
 {
+    write(STDOUT_FILENO, "\x1b[?25l", 6);	// Hide terminal cursor
     for (int i = 0; i < tE_ptr->m_nScreenWidth * tE_ptr->m_nScreenHeight; i++)
     {
         char buf[50];
         int size = snprintf(buf, sizeof(buf), "\x1b[38;5;%dm\x1b[48;5;%dm%c\x1b[m", tE_ptr->m_bufScreen[i].fg, tE_ptr->m_bufScreen[i].bg, tE_ptr->m_bufScreen[i].glyph);
         write(STDOUT_FILENO, buf, size);
     }
+    write(STDOUT_FILENO, "\x1b[?25h", 6);
 }
 
 #endif
