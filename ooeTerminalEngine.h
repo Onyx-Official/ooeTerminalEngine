@@ -28,7 +28,8 @@
 #define DONT_CARE  55995 
 #define CTRL_KEY(k)	((k) & 0x1F)
 #define SAFE_ALLOC_ADDITIONAL	33
-#define INVERSE_COLOR           500
+
+#define INVERSE_COLOR           300
 
 typedef char        	BYTE;
 typedef char		GLYPH;
@@ -90,38 +91,52 @@ struct VBUF
 
 Vbuf vbuf_init()
 {
-    Vbuf vbuf = {NULL, 0, SAFE_ALLOC_ADDITIONAL};
+    Vbuf vbuf;
+
     vbuf.data = malloc(SAFE_ALLOC_ADDITIONAL);
+    vbuf.size = 0;
+    vbuf.cap = SAFE_ALLOC_ADDITIONAL;
 
     return vbuf;
 }
 
-static void vbuf_Realloc(Vbuf* vbuf_ptr, size_t newCapacity)
+static void vbuf_Realloc(Vbuf* vbuf_ptr, size_t new_Capacity)
 {
-    if (newCapacity < vbuf_ptr->size)
-        vbuf_ptr->size = newCapacity;
+    char* data = malloc(new_Capacity);
+    if (new_Capacity < vbuf_ptr->size)	vbuf_ptr->size = new_Capacity;
 
-    char* data = malloc(newCapacity);
-
-    // Copy data frmo vbuf_ptr->data to vbuf.data
-    memcpy(vbuf_ptr->data, data, vbuf_ptr->size);
+    memcpy(data, vbuf_ptr->data, vbuf_ptr->size);
+    free(vbuf_ptr->data);
 
     vbuf_ptr->data = data;
-    vbuf_ptr->cap = newCapacity;
+    vbuf_ptr->cap = new_Capacity;
 }
 
-void vbuf_append(Vbuf* vbuf_ptr, const char *const data, const size_t data_size)
+void vbuf_append(Vbuf* vbuf_ptr, const char* data, const size_t data_size)
 {
+    if (vbuf_ptr->size + data_size >= vbuf_ptr->cap)	vbuf_Realloc(vbuf_ptr, vbuf_ptr->size + data_size + SAFE_ALLOC_ADDITIONAL);
+
+    memcpy(&vbuf_ptr->data[vbuf_ptr->size], data, data_size);
+    vbuf_ptr->size += data_size;
+}
+
+void vbuf_insert_cstring(Vbuf* vbuf_ptr, const char *const data, const size_t data_size, size_t pos)
+{
+    if (pos > vbuf_ptr->size)
+        return;
+
     if (data_size >= vbuf_ptr->cap)
         vbuf_Realloc(vbuf_ptr, (vbuf_ptr->cap + data_size + SAFE_ALLOC_ADDITIONAL));
 
-    memcpy((char*) data, &vbuf_ptr->data[vbuf_ptr->size - 1], data_size);
+    memmove(&vbuf_ptr->data[pos + data_size], &vbuf_ptr[pos], vbuf_ptr->size - pos);
+    memcpy(&vbuf_ptr->data[pos], data, data_size);
 }
 
 void vbuf_free(Vbuf* vbuf_ptr)
 {
     free(vbuf_ptr->data);
-    *vbuf_ptr = (Vbuf){NULL, 0, 0};
+    vbuf_ptr->size = 0;
+    vbuf_ptr->cap = 0;
 }
 
 // Set terminal into raw mode
